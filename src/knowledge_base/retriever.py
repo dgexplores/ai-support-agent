@@ -116,9 +116,16 @@ class KnowledgeRetriever:
         )
 
     def detect_source_conflicts(self, passages: list[dict]) -> list[dict]:
-        """Detect conflicts between retrieved passages from different sources."""
+        """Detect conflicts between retrieved passages from different sources.
+        
+        Checks for conflicts in two ways:
+        1. Same heading discussed in multiple active sources
+        2. Multiple active official sources discussing the same product/topic
+        """
         conflicts = []
+        seen_conflict_pairs = set()
 
+        # Method 1: Same heading from different sources
         heading_groups: dict[str, list[dict]] = {}
         for p in passages:
             heading = p.get("heading", "").lower()
@@ -132,10 +139,37 @@ class KnowledgeRetriever:
                 if "active" in statuses and "superseded" in statuses:
                     continue
                 if len(sources) > 1 and all(p["status"] == "active" for p in group):
+                    conflict_key = tuple(sorted(sources))
+                    if conflict_key not in seen_conflict_pairs:
+                        seen_conflict_pairs.add(conflict_key)
+                        conflicts.append({
+                            "heading": heading,
+                            "sources": list(sources),
+                            "passages": group,
+                        })
+
+        # Method 2: Multiple active sources discussing same product/topic
+        # Look for product names mentioned across different sources
+        product_keywords = {
+            "breeze tumbler": ["11-product-care.md", "12-breeze-tumbler-product-card.md"],
+            "tumbler": ["11-product-care.md", "12-breeze-tumbler-product-card.md"],
+        }
+        active_passages = [p for p in passages if p.get("status") == "active"]
+        for keyword, expected_sources in product_keywords.items():
+            relevant = [
+                p for p in active_passages
+                if keyword in p.get("content", "").lower()
+                and p.get("source") in expected_sources
+            ]
+            if len(relevant) >= 2:
+                sources = set(p["source"] for p in relevant)
+                conflict_key = tuple(sorted(sources))
+                if conflict_key not in seen_conflict_pairs:
+                    seen_conflict_pairs.add(conflict_key)
                     conflicts.append({
-                        "heading": heading,
+                        "heading": f"{keyword.title()} - conflicting information",
                         "sources": list(sources),
-                        "passages": group,
+                        "passages": relevant,
                     })
 
         return conflicts

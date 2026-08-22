@@ -3,36 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aster & Row - Support Agent</title>
+    <title>Aster & Row — Support Agent</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f5f5;
+            background: #0f0f23;
             height: 100vh;
             display: flex;
             flex-direction: column;
+            color: #e0e0e0;
         }
         .header {
             background: #1a1a2e;
-            color: white;
+            border-bottom: 1px solid #2a2a4e;
             padding: 16px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        .header h1 { font-size: 18px; font-weight: 600; }
-        .header .subtitle { font-size: 12px; color: #aaa; }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header .logo { font-size: 24px; }
+        .header h1 { font-size: 16px; font-weight: 600; color: #fff; }
+        .header .subtitle { font-size: 11px; color: #888; margin-top: 2px; }
         .header button {
-            background: #4a4a6a;
-            color: white;
-            border: none;
+            background: #2a2a4e;
+            color: #e0e0e0;
+            border: 1px solid #3a3a5e;
             padding: 8px 16px;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 13px;
+            font-size: 12px;
+            transition: all 0.2s;
         }
-        .header button:hover { background: #5a5a7a; }
+        .header button:hover { background: #3a3a5e; border-color: #4a4a6e; }
         .chat-container {
             flex: 1;
             overflow-y: auto;
@@ -45,53 +49,81 @@
             margin-bottom: 16px;
             display: flex;
             flex-direction: column;
+            animation: fadeIn 0.3s ease;
         }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .message.user { align-items: flex-end; }
         .message.assistant { align-items: flex-start; }
         .message .bubble {
-            max-width: 75%;
+            max-width: 78%;
             padding: 12px 16px;
             border-radius: 16px;
-            line-height: 1.5;
+            line-height: 1.6;
             font-size: 14px;
         }
         .message.user .bubble {
-            background: #1a1a2e;
+            background: #3b82f6;
             color: white;
             border-bottom-right-radius: 4px;
         }
         .message.assistant .bubble {
-            background: white;
-            color: #333;
+            background: #1a1a2e;
+            color: #e0e0e0;
             border-bottom-left-radius: 4px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border: 1px solid #2a2a4e;
         }
+        .tool-indicator {
+            font-size: 11px;
+            color: #60a5fa;
+            margin: 4px 0 4px 8px;
+            padding: 4px 10px;
+            background: #1a2a4a;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .tool-indicator .spinner {
+            width: 10px;
+            height: 10px;
+            border: 2px solid #3b82f6;
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
         .sources {
             font-size: 11px;
-            color: #888;
+            color: #666;
             margin-top: 6px;
             padding: 0 4px;
         }
-        .sources span { 
+        .sources span {
             display: inline-block;
-            background: #e8e8e8;
+            background: #1a1a2e;
+            border: 1px solid #2a2a4e;
+            color: #888;
             padding: 2px 8px;
             border-radius: 10px;
             margin-right: 4px;
+            margin-bottom: 4px;
         }
         .handoff-badge {
-            display: inline-block;
-            background: #fff3cd;
-            color: #856404;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #2a2a1a;
+            color: #fbbf24;
             padding: 4px 10px;
-            border-radius: 12px;
+            border-radius: 10px;
             font-size: 11px;
             margin-top: 8px;
+            border: 1px solid #3a3a2a;
         }
         .input-area {
-            background: white;
+            background: #1a1a2e;
             padding: 16px 24px;
-            border-top: 1px solid #e0e0e0;
+            border-top: 1px solid #2a2a4e;
         }
         .input-wrapper {
             max-width: 800px;
@@ -102,89 +134,157 @@
         .input-wrapper input {
             flex: 1;
             padding: 12px 16px;
-            border: 1px solid #ddd;
-            border-radius: 24px;
+            background: #0f0f23;
+            border: 1px solid #2a2a4e;
+            border-radius: 12px;
             font-size: 14px;
+            color: #e0e0e0;
             outline: none;
+            transition: border-color 0.2s;
         }
-        .input-wrapper input:focus { border-color: #1a1a2e; }
+        .input-wrapper input:focus { border-color: #3b82f6; }
+        .input-wrapper input::placeholder { color: #555; }
         .input-wrapper button {
-            background: #1a1a2e;
+            background: #3b82f6;
             color: white;
             border: none;
-            padding: 12px 24px;
-            border-radius: 24px;
+            padding: 12px 20px;
+            border-radius: 12px;
             cursor: pointer;
             font-size: 14px;
             font-weight: 500;
+            transition: background 0.2s;
         }
-        .input-wrapper button:hover { background: #2a2a4e; }
-        .input-wrapper button:disabled { background: #ccc; cursor: not-allowed; }
+        .input-wrapper button:hover { background: #2563eb; }
+        .input-wrapper button:disabled { background: #333; cursor: not-allowed; color: #666; }
         .typing {
             display: none;
-            padding: 12px 16px;
-            color: #888;
-            font-size: 14px;
+            padding: 8px 16px;
+            color: #666;
+            font-size: 13px;
+            max-width: 800px;
+            margin: 0 auto;
         }
-        .typing.active { display: block; }
+        .typing.active { display: flex; align-items: center; gap: 8px; }
+        .typing .dots { display: flex; gap: 4px; }
+        .typing .dot {
+            width: 6px;
+            height: 6px;
+            background: #3b82f6;
+            border-radius: 50%;
+            animation: bounce 1.4s ease-in-out infinite;
+        }
+        .typing .dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing .dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
+        .welcome {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        .welcome .icon { font-size: 48px; margin-bottom: 16px; }
+        .welcome h2 { font-size: 18px; color: #aaa; margin-bottom: 8px; }
+        .welcome p { font-size: 13px; max-width: 400px; margin: 0 auto; line-height: 1.6; }
+        .suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .suggestion {
+            background: #1a1a2e;
+            border: 1px solid #2a2a4e;
+            padding: 8px 14px;
+            border-radius: 10px;
+            font-size: 12px;
+            color: #888;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .suggestion:hover { border-color: #3b82f6; color: #e0e0e0; }
     </style>
 </head>
 <body>
     <div class="header">
-        <div>
-            <h1>Aster & Row Support</h1>
-            <div class="subtitle">AI-powered customer support</div>
+        <div class="header-left">
+            <span class="logo">🎒</span>
+            <div>
+                <h1>Aster & Row Support</h1>
+                <div class="subtitle">AI-powered customer support</div>
+            </div>
         </div>
-        <button onclick="newSession()">New Chat</button>
+        <button onclick="newSession()">✨ New Chat</button>
     </div>
-    
+
     <div class="chat-container" id="chatContainer">
-        <div class="message assistant">
-            <div class="bubble">
-                👋 Hi! I'm the Aster & Row support assistant. I can help you with:
-                <br><br>
-                • Order status and tracking<br>
-                • Return and refund policies<br>
-                • Shipping information<br>
-                • Warranty questions<br>
-                • Product care
-                <br><br>
-                How can I help you today?
+        <div class="welcome" id="welcome">
+            <div class="icon">🎒</div>
+            <h2>How can I help you today?</h2>
+            <p>I can help with orders, returns, shipping, warranties, and product information for Aster & Row.</p>
+            <div class="suggestions">
+                <div class="suggestion" onclick="quickAsk('How long do I have to return an item?')">📦 Return policy</div>
+                <div class="suggestion" onclick="quickAsk('Where is ORD-1007?')">🔍 Track order</div>
+                <div class="suggestion" onclick="quickAsk('Do you ship internationally?')">🌍 Shipping info</div>
+                <div class="suggestion" onclick="quickAsk('What is the warranty on bags?')">🛡️ Warranty</div>
             </div>
         </div>
     </div>
-    
+
+    <div class="typing" id="typing">
+        <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        Thinking...
+    </div>
+
     <div class="input-area">
         <div class="input-wrapper">
-            <input type="text" id="messageInput" placeholder="Type your message..." 
+            <input type="text" id="messageInput" placeholder="Type your message..."
                    onkeypress="if(event.key==='Enter')sendMessage()">
             <button id="sendBtn" onclick="sendMessage()">Send</button>
         </div>
-        <div class="typing" id="typing">Thinking...</div>
     </div>
 
     <script>
         let sessionId = null;
-        
+
         async function newSession() {
             const res = await fetch('/api/session/new', { method: 'POST' });
             const data = await res.json();
             sessionId = data.session_id;
-            document.getElementById('chatContainer').innerHTML = '';
-            addMessage('assistant', "👋 Hi! I'm the Aster & Row support assistant. How can I help you today?");
+            document.getElementById('chatContainer').innerHTML = `
+                <div class="welcome" id="welcome">
+                    <div class="icon">🎒</div>
+                    <h2>How can I help you today?</h2>
+                    <p>I can help with orders, returns, shipping, warranties, and product information.</p>
+                    <div class="suggestions">
+                        <div class="suggestion" onclick="quickAsk('How long do I have to return an item?')">📦 Return policy</div>
+                        <div class="suggestion" onclick="quickAsk('Where is ORD-1007?')">🔍 Track order</div>
+                        <div class="suggestion" onclick="quickAsk('Do you ship internationally?')">🌍 Shipping info</div>
+                        <div class="suggestion" onclick="quickAsk('What is the warranty on bags?')">🛡️ Warranty</div>
+                    </div>
+                </div>`;
         }
-        
+
+        function quickAsk(question) {
+            document.getElementById('messageInput').value = question;
+            sendMessage();
+        }
+
         async function sendMessage() {
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
             if (!message) return;
-            
+
+            // Remove welcome screen
+            const welcome = document.getElementById('welcome');
+            if (welcome) welcome.remove();
+
             input.value = '';
             addMessage('user', message);
-            
+
             document.getElementById('typing').classList.add('active');
             document.getElementById('sendBtn').disabled = true;
-            
+
             try {
                 const res = await fetch('/api/chat', {
                     method: 'POST',
@@ -193,44 +293,59 @@
                 });
                 const data = await res.json();
                 sessionId = data.session_id;
-                
+
+                // Show tool calls
+                if (data.tool_calls && data.tool_calls.length > 0) {
+                    for (const tc of data.tool_calls) {
+                        addToolCall(tc);
+                    }
+                }
+
                 addMessage('assistant', data.response, data.sources, data.handoff);
             } catch (err) {
                 addMessage('assistant', 'Sorry, something went wrong. Please try again.');
             }
-            
+
             document.getElementById('typing').classList.remove('active');
             document.getElementById('sendBtn').disabled = false;
             input.focus();
         }
-        
+
         function addMessage(role, content, sources = [], handoff = false) {
             const container = document.getElementById('chatContainer');
             const div = document.createElement('div');
             div.className = `message ${role}`;
-            
+
             let html = `<div class="bubble">${escapeHtml(content).replace(/\n/g, '<br>')}</div>`;
-            
+
             if (sources && sources.length > 0) {
-                html += `<div class="sources">Sources: ${sources.map(s => `<span>${escapeHtml(s)}</span>`).join('')}</div>`;
+                html += `<div class="sources">📎 ${sources.map(s => `<span>${escapeHtml(s)}</span>`).join('')}</div>`;
             }
-            
+
             if (handoff) {
                 html += `<div class="handoff-badge">💬 Recommend contacting support</div>`;
             }
-            
+
             div.innerHTML = html;
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
         }
-        
+
+        function addToolCall(toolName) {
+            const container = document.getElementById('chatContainer');
+            const div = document.createElement('div');
+            div.className = 'tool-indicator';
+            div.innerHTML = `<div class="spinner"></div> Looking up order information...`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
-        
-        // Initialize session
+
         newSession();
     </script>
 </body>

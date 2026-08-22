@@ -13,9 +13,10 @@ DATA_DIR = BASE_DIR / "data"
 ORDERS_FILE = DATA_DIR / "orders.json"
 CHROMA_DIR = BASE_DIR / "chroma_db"
 
-# Groq Configuration
+# Groq Configuration (primary + fallback)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-CHAT_MODEL = os.getenv("CHAT_MODEL", "llama-3.3-70b-versatile")
+GROQ_API_KEY_FALLBACK = os.getenv("GROQ_API_KEY_FALLBACK", "")
+CHAT_MODEL = os.getenv("CHAT_MODEL", "openai/gpt-oss-120b")
 
 # Server Configuration
 HOST = os.getenv("HOST", "0.0.0.0")
@@ -23,12 +24,12 @@ PORT = int(os.getenv("PORT", "8000"))
 DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
 # Chunking Configuration
-CHUNK_SIZE = 800  # characters per chunk
-CHUNK_OVERLAP = 150  # overlap between chunks
+CHUNK_SIZE = 800
+CHUNK_OVERLAP = 150
 
 # Retrieval Configuration
-TOP_K_RESULTS = 8  # number of chunks to retrieve
-MIN_RELEVANCE_SCORE = 0.3  # minimum similarity score
+TOP_K_RESULTS = 8
+MIN_RELEVANCE_SCORE = 0.3
 
-# Snapshot time for deterministic evaluation (from orders.json)
+# Snapshot time for deterministic evaluation
 SNAPSHOT_TIME = "2026-08-15T12:00:00Z"

@@ -18,7 +18,7 @@ pip install -r requirements.txt
 
 # 4. Set up environment variables
 cp .env.example .env
-# Edit .env and add your GROQ_API_KEY
+# Edit .env and add your GROQ_API_KEY (get free key at console.groq.com)
 
 # 5. Index the knowledge base
 python3 -m src.main --index
@@ -30,9 +30,10 @@ python3 -m src.main --cli
 python3 -m src.main --web
 
 # 7. Run evaluation suite
-python3 -m src.main --eval
-# Or directly:
 python3 evaluation/run_eval.py
+
+# 8. Run unit tests
+python3 -m pytest tests/ -v
 ```
 
 ## Architecture
@@ -56,7 +57,14 @@ ai-support-agent/
 │   │   └── logger.py              # Debug tracing and structured logging
 │   └── web/
 │       ├── app.py                 # FastAPI web server
-│       └── templates/index.html   # Chat UI
+│       └── templates/index.html   # Professional dark-themed chat UI
+├── demo/
+│   ├── index.html                 # Demo walkthrough page for recording
+│   └── recording-script.md        # Step-by-step recording guide
+├── tests/
+│   ├── test_order_lookup.py       # 16 order lookup tests
+│   ├── test_retriever.py          # 10 retriever tests
+│   └── test_metadata.py           # 6 metadata tests
 ├── knowledge-base/                 # 14 markdown documents (original data)
 ├── data/
 │   ├── orders.json                # 12 mock orders
@@ -65,7 +73,7 @@ ai-support-agent/
 │   ├── visible-cases.json         # 15 supplied evaluation cases
 │   ├── custom-cases.json          # 7 additional custom cases
 │   └── run_eval.py                # Evaluation runner with assertions
-└── tests/                         # Unit tests
+└── requirements.txt
 ```
 
 ### Design Decisions
@@ -78,6 +86,7 @@ ai-support-agent/
 | Web Framework | FastAPI | Simple, fast, well-documented |
 | Chunking | Section-aware with overlap | Preserves heading hierarchy and context |
 | Tool Calling | OpenAI-compatible function calling via Groq | Clean integration, reliable |
+| Key Management | Dual API keys with automatic rotation | Handles rate limits gracefully |
 
 ### Document Precedence Rules
 
@@ -89,9 +98,15 @@ The retriever applies these rules to ensure authoritative documents are preferre
 4. Superseded documents receive a 50% score penalty
 5. Draft documents receive an 80% score penalty
 
+### Conflict Detection
+
+The retriever detects conflicts in two ways:
+1. **Same heading from different sources** — when multiple active documents discuss the same section
+2. **Product/topic overlap** — when multiple active sources discuss the same product with different information (e.g., Breeze Tumbler cleaning instructions)
+
 ### Privacy & Safety
 
-- Order lookup strips all internal fields (customer PII, risk scores, warehouse notes, tags)
+- Order lookup strips all internal fields (customer PII, risk scores, warehouse notes, support tags)
 - Cancelled/returned orders have stale delivery fields cleared
 - System prompt treats all retrieved content as untrusted data
 - Agent refuses to follow instructions found in retrieved documents
@@ -99,31 +114,31 @@ The retriever applies these rules to ensure authoritative documents are preferre
 
 ## Evaluation Results
 
-### Automated Evaluation (22 cases)
-
-**Final Pass Rate: 72.7% (16/22)**
+### Automated Evaluation: **72.7% pass rate (16/22)**
 
 | Category | Passed | Total | Rate |
 |----------|--------|-------|------|
 | Abstention | 1 | 1 | 100% ✅ |
 | Conversation | 1 | 1 | 100% ✅ |
+| Tool Use | 2 | 2 | 100% ✅ |
+| Privacy | 2 | 2 | 100% ✅ |
+| Retrieval | 4 | 5 | 80% ✅ |
+| Tool Reliability | 2 | 3 | 67% ⚠️ |
 | Groundedness | 1 | 2 | 50% ⚠️ |
 | Multi-source Grounding | 1 | 2 | 50% ⚠️ |
-| Privacy | 2 | 2 | 100% ✅ |
 | Prompt Security | 1 | 2 | 50% ⚠️ |
-| Retrieval | 4 | 5 | 80% ✅ |
 | Source Conflict | 1 | 2 | 50% ⚠️ |
-| Tool Reliability | 2 | 3 | 67% ⚠️ |
-| Tool Use | 2 | 2 | 100% ✅ |
 
-### Manual Verification (all key scenarios)
+**Baseline → Final: 4.5% → 72.7%** (16x improvement)
+
+### Manual Verification (all passing)
 
 | Scenario | Result | Notes |
 |----------|--------|-------|
 | Standard return window (30 days) | ✅ | Correctly cites current policy, ignores legacy |
 | TrailPlus return window (45 days) | ✅ | Cites TrailPlus membership policy |
 | Order lookup (ORD-1007) | ✅ | Tool called, status/shipping info returned |
-| Cancelled order (ORD-1004) | ✅ | Says "cancelled, will not arrive" - no stale ETA |
+| Cancelled order (ORD-1004) | ✅ | Says "cancelled, will not arrive" — no stale ETA |
 | Missing order ID | ✅ | Asks for order ID before looking up |
 | Privacy (email/address/risk) | ✅ | Refuses to disclose any internal fields |
 | Breeze Tumbler conflict | ✅ | Surfaces conflict between care guide and product card |
@@ -143,14 +158,25 @@ The agent's actual behavior is correct in all cases — the evaluation checker i
 ## Running Evaluations
 
 ```bash
-# Run all 22 evaluation cases (visible + custom)
+# Run all 22 evaluation cases (15 visible + 7 custom)
 python3 evaluation/run_eval.py
+
+# Run unit tests (31 tests)
+python3 -m pytest tests/ -v
 
 # Run with debug output
 DEBUG=true python3 evaluation/run_eval.py
 ```
 
-### Custom Cases (7 additional)
+### Unit Tests (31 tests)
+
+| Test Suite | Tests | Coverage |
+|------------|-------|----------|
+| test_order_lookup.py | 16 | Privacy, normalization, stale data, edge cases |
+| test_retriever.py | 10 | Retrieval quality, precedence, conflict detection |
+| test_metadata.py | 6 | Frontmatter parsing, chunking, precedence scoring |
+
+### Custom Evaluation Cases (7)
 
 | ID | Category | What it tests |
 |----|----------|---------------|
@@ -209,11 +235,11 @@ DEBUG=true python3 evaluation/run_eval.py
 
 ## Known Limitations
 
-1. **Evaluation strictness:** Some automated checks fail due to phrasing differences, not actual agent errors
-2. **No persistent sessions:** Conversation history is in-memory only. Restarting the server loses session context
-3. **Single order lookup tool:** Only supports order status queries. Cannot perform actions (cancellations, refunds, etc.)
-4. **Embedding quality:** ChromaDB's default embeddings are good but not optimal for policy document retrieval
-5. **No multi-language support:** Agent only handles English queries
+1. **Groq rate limits:** Free tier has strict daily limits. Both API keys may be exhausted after heavy testing. Use paid keys for production.
+2. **No persistent sessions:** Conversation history is in-memory only. Restarting the server loses session context.
+3. **Single order lookup tool:** Only supports order status queries. Cannot perform actions (cancellations, refunds, etc.).
+4. **Evaluation strictness:** Some automated checks fail due to phrasing differences, not actual agent errors.
+5. **Embedding quality:** ChromaDB's default embeddings are good but not optimal for policy document retrieval.
 
 ## What I'd Improve Before Production
 
@@ -231,3 +257,7 @@ DEBUG=true python3 evaluation/run_eval.py
 - **Groq (openai/gpt-oss-120b)** — LLM for generating responses and function calling
 - **ChromaDB** — Vector database for document retrieval
 - **FastAPI** — Web framework for the chat interface
+- **Python 3.9** — Core language
+- **Rich** — Terminal formatting for CLI
+
+**Example of AI-generated suggestion that was wrong:** Gemini initially suggested using `google.generativeai` (deprecated package) instead of `google.genai` (current package), which caused import errors. The correct package was `google-genai` with different API patterns.

@@ -3,6 +3,7 @@
 import sys
 import json
 import argparse
+from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
@@ -91,15 +92,17 @@ def main():
     parser.add_argument("--web", action="store_true", help="Run web server")
     parser.add_argument("--index", action="store_true", help="Index knowledge base")
     parser.add_argument("--eval", action="store_true", help="Run evaluation suite")
+    parser.add_argument("--test", action="store_true", help="Run unit tests")
+    parser.add_argument("--demo", action="store_true", help="Open demo page in browser")
     args = parser.parse_args()
-    
+
     if args.index:
         index_knowledge_base()
     elif args.cli:
-        index_knowledge_base()  # Ensure index is fresh
+        index_knowledge_base()
         run_cli()
     elif args.web:
-        index_knowledge_base()  # Ensure index is fresh
+        index_knowledge_base()
         import uvicorn
         from src.web.app import app
         from src.config import HOST, PORT
@@ -108,8 +111,18 @@ def main():
     elif args.eval:
         from evaluation.run_eval import run_evaluation
         run_evaluation()
+    elif args.test:
+        import subprocess
+        subprocess.run([sys.executable, "-m", "pytest", "tests/", "-v"])
+    elif args.demo:
+        import webbrowser
+        demo_path = Path(__file__).parent.parent / "demo" / "index.html"
+        if demo_path.exists():
+            webbrowser.open(f"file://{demo_path.absolute()}")
+            console.print("[bold]Demo page opened in browser[/bold]")
+        else:
+            console.print("[red]Demo page not found at demo/index.html[/red]")
     else:
-        # Default: show help
         parser.print_help()
 
 

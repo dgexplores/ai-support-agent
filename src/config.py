@@ -13,9 +13,9 @@ DATA_DIR = BASE_DIR / "data"
 ORDERS_FILE = DATA_DIR / "orders.json"
 CHROMA_DIR = BASE_DIR / "chroma_db"
 
-# Gemini Configuration
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-CHAT_MODEL = os.getenv("CHAT_MODEL", "gemini-2.0-flash")
+# Groq Configuration
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+CHAT_MODEL = os.getenv("CHAT_MODEL", "llama-3.3-70b-versatile")
 
 # Server Configuration
 HOST = os.getenv("HOST", "0.0.0.0")

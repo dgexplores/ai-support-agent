@@ -1,4 +1,4 @@
-"""Core agent logic - orchestrates retrieval, tools, and Gemini LLM responses."""
+"""Core agent logic - orchestrates retrieval, tools, and Groq LLM responses."""
 
 import json
 import re
@@ -6,11 +6,9 @@ import time
 from typing import Optional
 from datetime import datetime
 
-from google import genai
-from google.genai import types
-from google.api_core import exceptions as google_exceptions
+from groq import Groq
 
-from src.config import GEMINI_API_KEY, CHAT_MODEL, SNAPSHOT_TIME
+from src.config import GROQ_API_KEY, CHAT_MODEL, SNAPSHOT_TIME
 from src.knowledge_base.retriever import KnowledgeRetriever
 from src.tools.order_lookup import lookup_order, get_order_tool_description
 from src.agent.prompts import build_system_prompt_with_context
@@ -19,35 +17,54 @@ from src.observability.logger import (
     ConversationTracer, DebugPanel, logger,
 )
 
-# Configure Gemini client
-client = genai.Client(api_key=GEMINI_API_KEY)
+# Initialize Groq client
+groq_client = Groq(api_key=GROQ_API_KEY)
+
+# Tool definition for Groq function calling
+GROQ_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "lookup_order",
+            "description": get_order_tool_description(),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "order_id": {
+                        "type": "string",
+                        "description": "The order ID to look up, e.g., 'ORD-1007'",
+                    }
+                },
+                "required": ["order_id"],
+            },
+        },
+    }
+]
 
 
-def _gemini_call_with_retry(func, *args, max_retries=3, base_delay=10, **kwargs):
-    """Call Gemini API with retry logic for rate limits."""
+def _groq_call_with_retry(messages, tools=None, max_retries=3, base_delay=2):
+    """Call Groq API with retry logic for rate limits."""
     for attempt in range(max_retries):
         try:
-            return func(*args, **kwargs)
+            kwargs = {
+                "model": CHAT_MODEL,
+                "messages": messages,
+                "temperature": 0,
+                "max_tokens": 1024,
+            }
+            if tools:
+                kwargs["tools"] = tools
+                kwargs["tool_choice"] = "auto"
+
+            return groq_client.chat.completions.create(**kwargs)
         except Exception as e:
             error_str = str(e)
-            if '429' in error_str or 'RESOURCE_EXHAUSTED' in error_str or 'rate' in error_str.lower():
-                delay = base_delay * (2 ** attempt)  # Exponential backoff
+            if "429" in error_str or "rate" in error_str.lower() or "limit" in error_str.lower():
+                delay = base_delay * (2 ** attempt)
                 logger.warning(f"Rate limited, retrying in {delay}s (attempt {attempt + 1}/{max_retries})")
                 time.sleep(delay)
                 continue
-            raise  # Re-raise non-rate-limit errors
-    raise Exception(f"Gemini API rate limit exceeded after {max_retries} retries")
-
-
-def lookup_order_tool(order_id: str) -> str:
-    """Look up an order by ID and return customer-safe information."""
-    result = lookup_order(order_id)
-    return json.dumps(result)
-
-
-def create_model():
-    """Create a Gemini model instance."""
-    return client.models
+            raise
 
 
 class SupportAgent:
@@ -92,132 +109,83 @@ class SupportAgent:
             conflicts=conflicts,
         )
 
-        # Step 4: Call Gemini with tools
+        # Step 4: Call Groq with tools
+        messages = [{"role": "system", "content": system_prompt}]
+        # Add conversation history
+        for msg in history:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+        # Add current user message
+        messages.append({"role": "user", "content": user_message})
+
         tool_results = []
         final_text = ""
+        max_tool_rounds = 3
 
         try:
-            # Build the full prompt with system instruction and user message
-            full_prompt = f"{system_prompt}\n\n---\n\nUser message: {user_message}"
+            for round_num in range(max_tool_rounds):
+                response = _groq_call_with_retry(messages, tools=GROQ_TOOLS)
+                choice = response.choices[0]
+                message = choice.message
 
-            # Add conversation context if available
-            if history:
-                context_parts = []
-                for msg in history[-6:]:  # Last 3 turns
-                    role = "Customer" if msg["role"] == "user" else "Agent"
-                    context_parts.append(f"{role}: {msg['content']}")
-                context_header = "## Conversation History\n\n" + "\n".join(context_parts) + "\n\n---\n\n"
-                full_prompt = f"{system_prompt}\n\n{context_header}User message: {user_message}"
-
-            # Use generate_content with tools
-            response = _gemini_call_with_retry(
-                client.models.generate_content,
-                model=CHAT_MODEL,
-                contents=full_prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0,
-                    max_output_tokens=1024,
-                    tools=[types.Tool(
-                        function_declarations=[
-                            types.FunctionDeclaration(
-                                name="lookup_order",
-                                description=get_order_tool_description(),
-                                parameters=types.Schema(
-                                    type=types.Type.OBJECT,
-                                    properties={
-                                        "order_id": types.Schema(
-                                            type=types.Type.STRING,
-                                            description="The order ID to look up, e.g., 'ORD-1007'",
-                                        ),
-                                    },
-                                    required=["order_id"],
-                                ),
-                            )
+                # Check if the model wants to call a tool
+                if message.tool_calls:
+                    # Add assistant message with tool calls to history
+                    assistant_msg = {"role": "assistant", "content": message.content or ""}
+                    if message.tool_calls:
+                        assistant_msg["tool_calls"] = [
+                            {
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments,
+                                },
+                            }
+                            for tc in message.tool_calls
                         ]
-                    )],
-                ),
-            )
+                    messages.append(assistant_msg)
 
-            # Handle tool calls in a loop
-            max_rounds = 3
-            for round_num in range(max_rounds):
-                # Check for function calls in the response
-                if hasattr(response, 'candidates') and response.candidates:
-                    candidate = response.candidates[0]
-                    if hasattr(candidate, 'content') and candidate.content:
-                        parts = candidate.content.parts
-                        has_function_call = False
+                    for tool_call in message.tool_calls:
+                        tool_name = tool_call.function.name
+                        try:
+                            tool_args = json.loads(tool_call.function.arguments)
+                        except json.JSONDecodeError:
+                            tool_args = {}
 
-                        for part in parts:
-                            if hasattr(part, 'function_call') and part.function_call:
-                                has_function_call = True
-                                fc = part.function_call
-                                func_name = fc.name
-                                func_args = dict(fc.args) if fc.args else {}
+                        # Execute the tool
+                        if tool_name == "lookup_order":
+                            order_id = tool_args.get("order_id", "")
+                            result = lookup_order(order_id)
+                        else:
+                            result = {"error": f"Unknown tool: {tool_name}"}
 
-                                # Execute the tool
-                                if func_name == "lookup_order":
-                                    order_id = func_args.get("order_id", "")
-                                    result = lookup_order(order_id)
-                                else:
-                                    result = {"error": f"Unknown tool: {func_name}"}
+                        tool_results.append({
+                            "tool": tool_name,
+                            "arguments": tool_args,
+                            "result": result,
+                        })
 
-                                tool_results.append({
-                                    "tool": func_name,
-                                    "arguments": func_args,
-                                    "result": result,
-                                })
+                        tracer.log_tool_call(tool_name, tool_args, result)
 
-                                tracer.log_tool_call(func_name, func_args, result)
+                        if self.debug:
+                            DebugPanel.show_tool_call(tool_name, tool_args, result)
 
-                                if self.debug:
-                                    DebugPanel.show_tool_call(func_name, func_args, result)
+                        # Add tool result to messages
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": json.dumps(result),
+                        })
 
-                        if has_function_call:
-                            # Send tool results back
-                            tool_result_parts = []
-                            for tr in tool_results[-1:]:
-                                tool_result_parts.append(json.dumps(tr["result"]))
+                    # Continue loop - model will respond with tool results
+                    continue
 
-                            response = _gemini_call_with_retry(
-                                client.models.generate_content,
-                                model=CHAT_MODEL,
-                                contents=[
-                                    types.Content(
-                                        role="user",
-                                        parts=[types.Part(text=full_prompt)]
-                                    ),
-                                    types.Content(
-                                        role="model",
-                                        parts=[types.Part(text="I'll look that up for you.")]
-                                    ),
-                                    types.Content(
-                                        role="user",
-                                        parts=[types.Part(text="\n".join(tool_result_parts))]
-                                    ),
-                                ],
-                                config=types.GenerateContentConfig(
-                                    temperature=0,
-                                    max_output_tokens=1024,
-                                ),
-                            )
-                            continue
-
-                        # Extract text response
-                        for part in parts:
-                            if hasattr(part, 'text') and part.text:
-                                final_text += part.text
-                        break
-
-            # Fallback if no text was extracted
-            if not final_text and response:
-                if hasattr(response, 'text'):
-                    final_text = response.text
-                else:
-                    final_text = str(response)
+                # No tool calls - extract final text response
+                final_text = message.content or ""
+                break
 
         except Exception as e:
-            logger.error(f"Gemini error: {e}")
+            logger.error(f"Groq error: {e}")
             tracer.log_event("error", {"message": str(e)})
             final_text = "I'm sorry, I'm experiencing a technical issue. Please try again or contact our support team."
 
@@ -255,10 +223,9 @@ class SupportAgent:
         sources = set()
 
         # Look for explicit source references in the response
-        # Match formats like [Source: filename.md, "Heading"] or [Source: filename.md]
         source_patterns = [
             r'\[Source:\s*([\w\d._-]+\.md)',
-            r'\(([\w\d._-]+\.md)\)',
+            r'\(([ \w\d._-]*\.md)\)',
             r'from\s+([\w\d._-]+\.md)',
             r'according to\s+([\w\d._-]+\.md)',
         ]

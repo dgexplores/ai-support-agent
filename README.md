@@ -8,6 +8,8 @@ A reliable RAG-based customer support agent for Aster & Row, an ecommerce compan
 
 ## Demo
 
+> ![Demo](demo/demo.gif)
+
 > **[▶ Watch the demo video](demo/index.html)** — Click to see the agent handling all required scenarios.
 >
 > A step-by-step recording script is available at `demo/recording-script.md`.

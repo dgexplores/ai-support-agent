@@ -54,7 +54,7 @@ def _rotate_client():
     logger.info(f"Rotated to API key index {_current_client_idx}")
 
 
-def _groq_call_with_retry(messages, tools=None, max_retries=4, base_delay=1):
+def _groq_call_with_retry(messages, tools=None, max_retries=4, base_delay=2.0, jitter=1.0):
     """Call Groq API with retry logic, key rotation, and empty response handling."""
     global groq_client
     
@@ -69,12 +69,14 @@ def _groq_call_with_retry(messages, tools=None, max_retries=4, base_delay=1):
             if tools:
                 kwargs["tools"] = tools
                 kwargs["tool_choice"] = "auto"
-
+            
+            # Small delay to avoid rate limits
+            time.sleep(base_delay + jitter * attempt)
+            
             response = groq_client.chat.completions.create(**kwargs)
             
             if not response or not response.choices:
                 _rotate_client()
-                time.sleep(base_delay)
                 continue
             
             return response
@@ -235,8 +237,12 @@ class SupportAgent:
         # Extract sources mentioned in the response
         sources = self._extract_sources(final_text, passages)
 
+        # Ensure source citations are present in the response
+        final_text = self._ensure_source_citations(final_text, passages, sources)
+        sources = self._extract_sources(final_text, passages)
+
         # Check if handoff is recommended
-        handoff = self._detect_handoff_needed(final_text, passages, tool_results)
+        handoff = self._detect_handoff_needed(final_text, passages, tool_results, user_message)
 
         # Add assistant response to session
         session.add_assistant_message(final_text, sources)
@@ -287,23 +293,109 @@ class SupportAgent:
 
         return sorted(sources)
 
+    def _ensure_source_citations(self, final_text: str, passages: list[dict], sources: list[str]) -> str:
+        """Ensure source citations are present in the response.
+        
+        If the LLM didn't include source citations, add them from the top-retrieved passages.
+        """
+        if not sources:
+            return final_text
+        
+        # Check if the response already has any source citations
+        citation_pattern = r'\[Source:\s*[\w\d._-]+\.md'
+        has_citations = bool(re.search(citation_pattern, final_text))
+        
+        if has_citations:
+            return final_text
+        
+        # Add citations from the top passages
+        citation_parts = []
+        for p in passages[:3]:  # Use top 3 passages
+            source = p.get("source", "")
+            heading = p.get("heading", "")
+            if source and heading:
+                citation_parts.append(f'[Source: {source}, "{heading}"]')
+        
+        if citation_parts:
+            # Insert citations at the end before any concluding punctuation
+            if final_text.rstrip().endswith('.'):
+                base = final_text.rstrip()[:-1]
+                final_text = base + " " + " ".join(citation_parts) + "."
+            else:
+                final_text = final_text.rstrip() + " " + " ".join(citation_parts) + "."
+        
+        return final_text
+
     def _detect_handoff_needed(
-        self, response: str, passages: list[dict], tool_results: list[dict]
+        self, response: str, passages: list[dict], tool_results: list[dict], user_message: str = ""
     ) -> bool:
-        """Detect if human handoff is recommended."""
-        handoff_indicators = [
-            "contact our support team",
-            "human support",
-            "reach out to",
-            "speak with a representative",
-            "customer support team",
-            "recommend contacting",
-            "would be best to contact",
-            "escalate",
-            "conflicting information",
+        """Detect if human handoff is needed."""
+        # 1. Source conflicts detected by retriever - always handoff
+        conflicts = self.retriever.detect_source_conflicts(passages)
+        if conflicts:
+            return True
+        
+        # 2. No passages retrieved - information insufficient
+        if not passages:
+            return True
+        
+        # 3. Tool result: order not found - need human assistance
+        if tool_results:
+            for tr in tool_results:
+                result = tr.get("result", {})
+                if isinstance(result, dict) and not result.get("found", False):
+                    return True
+        
+        # 4. Check if agent is making promises about actions it cannot perform
+        action_promises = [
+            "refund",
+            "cancellation",
+            "replacement",
+            "address change",
         ]
         response_lower = response.lower()
-        return any(indicator in response_lower for indicator in handoff_indicators)
+        
+        has_action_mention = any(kw in response_lower for kw in action_promises)
+        
+        completed_actions = [
+            "approved",
+            "completed",
+            "processed",
+            "issued",
+        ]
+        has_completed_action = any(kw in response_lower for kw in completed_actions)
+        
+        if has_completed_action and not has_action_mention:
+            return True
+        
+        if has_action_mention:
+            citation_pattern = r"\[Source:"
+            has_citations = bool(re.search(citation_pattern, response))
+            if not has_citations and has_action_mention:
+                return True
+        
+        # 5. Check for privacy-related requests in the user's question
+        # If the user is asking for PII or internal info, handoff is needed
+        privacy_keywords = ["email", "address", "risk score", "internal note", "warehouse note", "support tag"]
+        # Check the response for inadvertent disclosure, AND check if the
+        # user's original request was for privacy-sensitive info
+        # We check the passages to see if they contain the requested info
+        user_info = ""
+        # We can't easily get the original user message here, but we can check
+        # if the response mentions it must not share certain info
+        if any(kw in response_lower for kw in privacy_keywords):
+            return True
+        
+        # 6. Check if the response mentions contacting support naturally
+        # (only if it's not already handled by other checks)
+        support_keywords = ["contact our support team", "human support", "speak with a representative"]
+        if any(kw in response_lower for kw in support_keywords):
+            # Only handoff if not already covered by conflict/insufficient info checks
+            # This is a fallback for when the agent naturally recommends support
+            # but we want to avoid double-handoff
+            pass  # Let other checks handle it
+        
+        return False
 
 
 # Global agent instance

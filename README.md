@@ -10,6 +10,13 @@ A reliable RAG-based customer support agent for Aster & Row, an ecommerce compan
 
 ![Demo](demo/demo.gif)
 
+**Screenshots** (click any to enlarge):
+
+| | |
+|---|---|
+| ![Screenshot 1](demo/screenshot-1.png) | ![Screenshot 2](demo/screenshot-2.png) |
+| ![Screenshot 3](demo/screenshot-3.png) | ![Screenshot 4](demo/screenshot-4.png) |
+
 > **[📋 Full scenario walkthrough](demo/index.html)** — All required scenarios with live-agent responses, sources, and handoff badges.
 
 ---

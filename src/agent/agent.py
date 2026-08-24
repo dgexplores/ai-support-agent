@@ -69,9 +69,9 @@ def _groq_call_with_retry(messages, tools=None, max_retries=4, base_delay=2.0, j
             if tools:
                 kwargs["tools"] = tools
                 kwargs["tool_choice"] = "auto"
-            
-            # Small delay to avoid rate limits
-            time.sleep(base_delay + jitter * attempt)
+            # Backoff only on retry attempts to avoid rate limits
+            if attempt > 0:
+                time.sleep(base_delay + jitter * attempt)
             
             response = groq_client.chat.completions.create(**kwargs)
             

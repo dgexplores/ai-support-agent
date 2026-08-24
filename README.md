@@ -8,20 +8,11 @@ A reliable RAG-based customer support agent for Aster & Row, an ecommerce compan
 
 ## Demo
 
-> ![Demo](demo/demo.gif)
+![Demo](demo/demo.gif)
 
-> **[▶ Watch the demo video](demo/index.html)** — Click to see the agent handling all required scenarios.
+> **[📋 Full scenario walkthrough](demo/index.html)** — All required scenarios with live-agent responses, sources, and handoff badges.
 >
 > A step-by-step recording script is available at `demo/recording-script.md`.
-> To record your own GIF, run `python3 -m src.main --web` and follow the script.
-
-<!-- 
-To embed a GIF after recording:
-1. Record with QuickTime (Mac) or OBS (~2 minutes)
-2. Convert to GIF with: ffmpeg -i demo.mp4 -vf "fps=10,scale=800:-1" demo.gif
-3. Place demo.gif in demo/ folder
-4. Replace the line above with: ![Demo](demo/demo.gif)
--->
 
 ---
 
@@ -290,6 +281,16 @@ python3 evaluation/run_eval.py
 **Fix:** Added product-specific conflict detection in the retriever. System prompt instructs: "If two active official documents give conflicting information, say so explicitly. Do NOT silently choose one."
 
 **Regression Test:** `genuine-active-source-conflict` case checks both sources are mentioned and "conflict" or "conflicting" appears. Also `test_conflict_detection` unit test.
+
+### Bug 5: Slow Responses Due to Unconditional Rate-Limit Backoff *(performance regression found during demo testing)*
+
+**Reproduction:** Every response took 7–9 seconds, even simple retrieval questions with no rate limiting occurring.
+
+**Root Cause:** A `time.sleep()` backoff was applied **before every LLM call**, including the first attempt (attempt 0). Since a single turn makes 1–2 LLM calls, this added a guaranteed ~2–4 seconds of pure sleep per turn.
+
+**Fix:** Backoff now applies only to retry attempts (`if attempt > 0`). First attempt fires immediately; retries still respect rate limits with progressive delays. End-to-end latency for a retrieval answer dropped from ~8–9s to ~5s.
+
+**Regression Test:** All 31 unit tests pass unchanged (backoff logic is transport-level); verified by timing the `/api/chat` endpoint before and after.
 
 ---
 

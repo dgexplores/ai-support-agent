@@ -4,6 +4,15 @@ A reliable RAG-based customer support agent for Aster & Row, an ecommerce compan
 
 **Repository:** [github.com/dgexplores/ai-support-agent](https://github.com/dgexplores/ai-support-agent)
 
+## 60-second brief
+
+RAG customer-support agent for a fictional bag retailer, built to survive bad data: conflicting policies, prompt injection, stale orders, PII. Stack: Groq (`openai/gpt-oss-120b`), ChromaDB local embeddings, FastAPI + Rich CLI. Verified: 22 eval cases (15 supplied + 7 custom), 31 unit tests.
+
+| | |
+|---|---|
+| Code | [`src/agent/`](src/agent) · [`src/knowledge_base/`](src/knowledge_base) · [`src/tools/`](src/tools) · [`src/web/`](src/web) |
+| Evidence | [`knowledge-base/`](knowledge-base) (14 docs) · [`evaluation/`](evaluation) (22 cases + runner) · [`tests/`](tests) (31 tests) · [`demo/`](demo) (GIF, screenshots, scenario walkthrough) |
+
 ---
 
 ## Demo

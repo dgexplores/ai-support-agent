@@ -363,3 +363,7 @@ Codebuff initially suggested using `google.generativeai` (deprecated package) in
 ## License
 
 This project was built as part of the AI Agent Intern Take-Home assignment.
+
+## Continuous verification
+
+The proposed CI runs only tests/test_metadata.py with pytest and no LLM credentials. This checks metadata parsing and precedence contracts, not retrieval quality, embedding/model behaviour or the full evaluation suite.

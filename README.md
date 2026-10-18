@@ -8,6 +8,8 @@ A reliable RAG-based customer support agent for Aster & Row, an ecommerce compan
 
 RAG customer-support agent for a fictional bag retailer, built to survive bad data: conflicting policies, prompt injection, stale orders, PII. Stack: Groq (`openai/gpt-oss-120b`), ChromaDB local embeddings, FastAPI + Rich CLI. Verified: 22 eval cases (15 supplied + 7 custom), 31 unit tests.
 
+**Implementation status (2026-10-18):** local, runnable prototype. The repository includes the web UI, CLI, retrieval pipeline, order-lookup tool, fixtures, tests, and recorded demo; no public deployment URL or hosted-environment verification is provided in this repository.
+
 | | |
 |---|---|
 | Code | [`src/agent/`](src/agent) · [`src/knowledge_base/`](src/knowledge_base) · [`src/tools/`](src/tools) · [`src/web/`](src/web) |

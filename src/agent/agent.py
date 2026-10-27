@@ -19,16 +19,14 @@ from src.observability.logger import (
 
 # Initialize Groq clients (primary + fallback)
 if LLM_PROVIDER == "gemini":
-    # Gemini documents the same chat-completions/function-call wire format.
-    groq_clients = [Groq(api_key=GEMINI_API_KEY, timeout=25.0, max_retries=0,
-                         base_url="https://generativelanguage.googleapis.com/v1beta/openai/")]
+    groq_clients = []
 elif LLM_PROVIDER == "groq":
     groq_clients = [Groq(api_key=GROQ_API_KEY, timeout=25.0, max_retries=0)]
 else:
     raise ValueError("LLM_PROVIDER must be groq or gemini")
 if LLM_PROVIDER == "groq" and GROQ_API_KEY_FALLBACK:
     groq_clients.append(Groq(api_key=GROQ_API_KEY_FALLBACK, timeout=25.0, max_retries=0))
-groq_client = groq_clients[0]
+groq_client = groq_clients[0] if groq_clients else None
 _current_client_idx = 0
 
 # Tool definition for Groq function calling
@@ -64,7 +62,10 @@ def _rotate_client():
 def _groq_call_with_retry(messages, tools=None, max_retries=2, base_delay=2.0, jitter=1.0):
     """Call Groq API with retry logic, key rotation, and empty response handling."""
     global groq_client
-    
+    if LLM_PROVIDER == "gemini":
+        from src.agent.gemini import complete
+        return complete(messages, tools)
+
     for attempt in range(max_retries):
         try:
             kwargs = {

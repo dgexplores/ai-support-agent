@@ -372,4 +372,4 @@ The public deployment uses fictional store policies and sample orders. Do not en
 
 Run one worker with a persistent `/state` volume using the Dockerfile. The Chroma index is rebuilt from the bundled policy documents at startup. No real customer database is connected. The daily allowance remains across restarts when the volume is retained. Hosted demonstration and local evaluation are separate evidence boundaries; a retrieved citation does not establish answer correctness.
 
-For Gemini, set `LLM_PROVIDER=gemini`, a private `GEMINI_API_KEY` and `CHAT_MODEL=gemini-2.5-flash-lite`. The existing compatible SDK transport sends chat/function-call requests to Google’s documented compatibility endpoint; no Groq credential is sent to Google. `/api/health` identifies the selected provider/model, but remains a liveness probe.
+For Gemini, set `LLM_PROVIDER=gemini`, a private `GEMINI_API_KEY` and `CHAT_MODEL=gemini-2.5-flash-lite`. An explicit HTTP transport sends chat/function-call requests to Google’s documented compatibility endpoint; no Groq credential is sent to Google. `/api/health` identifies the selected provider/model, but remains a liveness probe.

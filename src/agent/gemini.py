@@ -10,6 +10,8 @@ def complete(messages, tools=None):
     if not GEMINI_API_KEY:
         raise RuntimeError('GEMINI_API_KEY is not configured')
     payload = {'model': CHAT_MODEL, 'messages': messages, 'temperature': 0, 'max_tokens': 1024}
+    if CHAT_MODEL.startswith("gemini-2.5-"):
+        payload["reasoning_effort"] = "none"
     if tools:
         payload.update(tools=tools, tool_choice='auto')
     response = httpx.post(ENDPOINT, headers={'Authorization': 'Bearer ' + GEMINI_API_KEY},

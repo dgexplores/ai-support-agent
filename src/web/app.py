@@ -11,7 +11,7 @@ from typing import Optional
 
 from src.agent.agent import support_agent
 from src.agent.conversation import session_manager
-from src.config import BASE_DIR
+from src.config import BASE_DIR, LLM_PROVIDER, CHAT_MODEL
 from src.web.demo_guard import DemoGuard
 
 app = FastAPI(title="Aster & Row Support Agent")
@@ -73,6 +73,8 @@ def chat(payload: ChatRequest, request: Request):
         if not guard.admit(actor):
             raise HTTPException(429, "Demo request limit reached. Please try later.")
         result = support_agent.handle_message(payload.message, token, debug=False)
+    if result.get("provider_failed"):
+        raise HTTPException(503, "The AI provider is temporarily unavailable. Please try later.")
     result["trace"] = None
     return ChatResponse(**result)
 
@@ -106,4 +108,4 @@ def clear_session(request: Request, session_id: str):
 @app.get("/api/health")
 async def health():
     """Health check endpoint."""
-    return {"status": "ok", "service": "aster-row-support-agent"}
+    return {"status": "ok", "service": "aster-row-support-agent", "provider": LLM_PROVIDER, "model": CHAT_MODEL}

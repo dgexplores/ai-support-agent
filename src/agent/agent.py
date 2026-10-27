@@ -8,7 +8,7 @@ from datetime import datetime
 
 from groq import Groq
 
-from src.config import GROQ_API_KEY, GROQ_API_KEY_FALLBACK, CHAT_MODEL, SNAPSHOT_TIME
+from src.config import GROQ_API_KEY, GROQ_API_KEY_FALLBACK, CHAT_MODEL, SNAPSHOT_TIME, LLM_PROVIDER, GEMINI_API_KEY
 from src.knowledge_base.retriever import KnowledgeRetriever
 from src.tools.order_lookup import lookup_order, get_order_tool_description
 from src.agent.prompts import build_system_prompt_with_context
@@ -18,8 +18,15 @@ from src.observability.logger import (
 )
 
 # Initialize Groq clients (primary + fallback)
-groq_clients = [Groq(api_key=GROQ_API_KEY, timeout=25.0, max_retries=0)]
-if GROQ_API_KEY_FALLBACK:
+if LLM_PROVIDER == "gemini":
+    # Gemini documents the same chat-completions/function-call wire format.
+    groq_clients = [Groq(api_key=GEMINI_API_KEY, timeout=25.0, max_retries=0,
+                         base_url="https://generativelanguage.googleapis.com/v1beta/openai/")]
+elif LLM_PROVIDER == "groq":
+    groq_clients = [Groq(api_key=GROQ_API_KEY, timeout=25.0, max_retries=0)]
+else:
+    raise ValueError("LLM_PROVIDER must be groq or gemini")
+if LLM_PROVIDER == "groq" and GROQ_API_KEY_FALLBACK:
     groq_clients.append(Groq(api_key=GROQ_API_KEY_FALLBACK, timeout=25.0, max_retries=0))
 groq_client = groq_clients[0]
 _current_client_idx = 0
@@ -139,6 +146,7 @@ class SupportAgent:
 
         tool_results = []
         final_text = ""
+        provider_failed = False
         max_tool_rounds = 3
 
         try:
@@ -228,7 +236,8 @@ class SupportAgent:
                 break
 
         except Exception as e:
-            logger.error(f"Groq error: {e}")
+            provider_failed = True
+            logger.error(f"Provider error: {type(e).__name__}")
             tracer.log_event("error", {"message": str(e)})
             final_text = "I'm sorry, I'm experiencing a technical issue. Please try again or contact our support team."
 
@@ -236,8 +245,11 @@ class SupportAgent:
         sources = self._extract_sources(final_text, passages)
 
         # Ensure source citations are present in the response
-        final_text = self._ensure_source_citations(final_text, passages, sources)
-        sources = self._extract_sources(final_text, passages)
+        if not provider_failed:
+            final_text = self._ensure_source_citations(final_text, passages, sources)
+            sources = self._extract_sources(final_text, passages)
+        else:
+            sources = []
 
         # Check if handoff is recommended
         handoff = self._detect_handoff_needed(final_text, passages, tool_results, user_message)
@@ -257,6 +269,7 @@ class SupportAgent:
             DebugPanel.show_response(final_text, sources)
 
         return {
+            "provider_failed": provider_failed,
             "response": final_text,
             "sources": sources,
             "tool_calls": [tr["tool"] for tr in tool_results],

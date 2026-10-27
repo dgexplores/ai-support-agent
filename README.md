@@ -365,3 +365,9 @@ Codebuff initially suggested using `google.generativeai` (deprecated package) in
 ## License
 
 This project was built as part of the AI Agent Intern Take-Home assignment.
+
+## Bounded public demonstration
+
+The public deployment uses fictional store policies and sample orders. Do not enter personal data. Chat requires an HTTP-only, same-site session cookie; another session cannot reuse or clear it. Request bodies are limited to 8 KB and messages to 1,500 characters. Each client is limited to four requests per minute, with a persistent global allowance of 40 chat attempts per UTC day. Provider retries and timeouts are bounded. Detailed traces stay on the server.
+
+Run one worker with a persistent `/state` volume using the Dockerfile. The Chroma index is rebuilt from the bundled policy documents at startup. No real customer database is connected. The daily allowance remains across restarts when the volume is retained. Hosted demonstration and local evaluation are separate evidence boundaries; a retrieved citation does not establish answer correctness.

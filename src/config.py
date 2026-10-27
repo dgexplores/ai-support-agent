@@ -4,14 +4,14 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv(override=True)
+load_dotenv(override=False)
 
 # Paths
 BASE_DIR = Path(__file__).parent.parent
 KNOWLEDGE_BASE_DIR = BASE_DIR / "knowledge-base"
 DATA_DIR = BASE_DIR / "data"
 ORDERS_FILE = DATA_DIR / "orders.json"
-CHROMA_DIR = BASE_DIR / "chroma_db"
+CHROMA_DIR = Path(os.getenv("CHROMA_DIR", str(BASE_DIR / "chroma_db")))
 
 # Groq Configuration (primary + fallback)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")

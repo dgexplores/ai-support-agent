@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  syntax-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Syntax check all tracked Python sources
+        run: |
+          PY=$(git ls-files '*.py')
+          if [ -n "$PY" ]; then
+            python -m py_compile $PY
+          else
+            echo "no python sources tracked"
+          fi
+

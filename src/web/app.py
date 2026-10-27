@@ -11,7 +11,7 @@ from typing import Optional
 
 from src.agent.agent import support_agent
 from src.agent.conversation import session_manager
-from src.config import BASE_DIR
+from src.config import BASE_DIR, LLM_PROVIDER, CHAT_MODEL
 from src.web.demo_guard import DemoGuard
 
 app = FastAPI(title="Aster & Row Support Agent")
@@ -106,4 +106,4 @@ def clear_session(request: Request, session_id: str):
 @app.get("/api/health")
 async def health():
     """Health check endpoint."""
-    return {"status": "ok", "service": "aster-row-support-agent"}
+    return {"status": "ok", "service": "aster-row-support-agent", "provider": LLM_PROVIDER, "model": CHAT_MODEL}

@@ -16,7 +16,9 @@ CHROMA_DIR = Path(os.getenv("CHROMA_DIR", str(BASE_DIR / "chroma_db")))
 # Groq Configuration (primary + fallback)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_API_KEY_FALLBACK = os.getenv("GROQ_API_KEY_FALLBACK", "")
-CHAT_MODEL = os.getenv("CHAT_MODEL", "openai/gpt-oss-120b")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+CHAT_MODEL = os.getenv("CHAT_MODEL", "gemini-2.5-flash-lite" if LLM_PROVIDER == "gemini" else "openai/gpt-oss-120b")
 
 # Server Configuration
 HOST = os.getenv("HOST", "0.0.0.0")

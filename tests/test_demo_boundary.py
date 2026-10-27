@@ -45,3 +45,10 @@ def test_model_outage_is_not_reported_as_success(tmp_path, monkeypatch):
     with TestClient(web.app) as client:
         client.post('/api/session/new')
         assert client.post('/api/chat', json={'message': 'returns?'}).status_code == 503
+
+
+def test_homepage_uses_current_template_contract():
+    with TestClient(web.app) as client:
+        result = client.get('/')
+        assert result.status_code == 200
+        assert 'Fictional store demonstration' in result.text

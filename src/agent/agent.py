@@ -18,9 +18,9 @@ from src.observability.logger import (
 )
 
 # Initialize Groq clients (primary + fallback)
-groq_clients = [Groq(api_key=GROQ_API_KEY)]
+groq_clients = [Groq(api_key=GROQ_API_KEY, timeout=25.0, max_retries=0)]
 if GROQ_API_KEY_FALLBACK:
-    groq_clients.append(Groq(api_key=GROQ_API_KEY_FALLBACK))
+    groq_clients.append(Groq(api_key=GROQ_API_KEY_FALLBACK, timeout=25.0, max_retries=0))
 groq_client = groq_clients[0]
 _current_client_idx = 0
 
@@ -54,7 +54,7 @@ def _rotate_client():
     logger.info(f"Rotated to API key index {_current_client_idx}")
 
 
-def _groq_call_with_retry(messages, tools=None, max_retries=4, base_delay=2.0, jitter=1.0):
+def _groq_call_with_retry(messages, tools=None, max_retries=2, base_delay=2.0, jitter=1.0):
     """Call Groq API with retry logic, key rotation, and empty response handling."""
     global groq_client
     
@@ -136,8 +136,6 @@ class SupportAgent:
         # Add conversation history
         for msg in history:
             messages.append({"role": msg["role"], "content": msg["content"]})
-        # Add current user message
-        messages.append({"role": "user", "content": user_message})
 
         tool_results = []
         final_text = ""

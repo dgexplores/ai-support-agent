@@ -1,0 +1,5 @@
+*
+!requirements.txt
+!src/**
+!knowledge-base/**
+!data/**

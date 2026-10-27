@@ -296,6 +296,7 @@
     </style>
 </head>
 <body>
+<p role="note" style="text-align:center;padding:12px">Fictional store demonstration. Please use sample orders only; do not enter personal data. Limited to 40 requests per UTC day.</p>
     <div class="header">
         <div class="header-left">
             <span class="logo">🎒</span>
@@ -398,6 +399,7 @@
                     body: JSON.stringify({ message, session_id: sessionId }),
                 });
                 const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || "The demo is temporarily unavailable.");
                 sessionId = data.session_id;
 
                 if (data.tool_calls && data.tool_calls.length > 0) {
@@ -408,7 +410,7 @@
 
                 addMessage('assistant', data.response, data.sources, data.handoff);
             } catch (err) {
-                addMessage('assistant', 'Sorry, something went wrong. Please try again.');
+                addMessage('assistant', err.message || 'The demo is temporarily unavailable. Please try later.');
             }
 
             document.getElementById('typing').classList.remove('active');

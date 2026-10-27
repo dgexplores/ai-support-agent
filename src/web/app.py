@@ -1,9 +1,10 @@
 """FastAPI web application for the AI support agent."""
 
-import json
+from threading import Lock
+from fastapi import HTTPException, Response
+from pydantic import Field
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from typing import Optional
@@ -11,13 +12,18 @@ from typing import Optional
 from src.agent.agent import support_agent
 from src.agent.conversation import session_manager
 from src.config import BASE_DIR
+from src.web.demo_guard import DemoGuard
 
 app = FastAPI(title="Aster & Row Support Agent")
+guard = DemoGuard()
+agent_lock = Lock()
+COOKIE = "aster_demo"
+
 templates = Jinja2Templates(directory=str(BASE_DIR / "src" / "web" / "templates"))
 
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(min_length=1, max_length=1500)
     session_id: Optional[str] = None
     debug: Optional[bool] = False
 
@@ -37,28 +43,63 @@ async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+def owned_session(request: Request, session_id=None):
+    token = request.cookies.get(COOKIE)
+    if not token or not session_manager.get_session(token) or (session_id and token != session_id):
+        raise HTTPException(403, "Start your own demo session first.")
+    return token
+
+
+@app.middleware("http")
+async def demo_boundary(request: Request, call_next):
+    if request.method == "POST":
+        origin = request.headers.get("origin")
+        if origin and origin != str(request.base_url).rstrip("/"):
+            return JSONResponse({"detail": "Cross-origin requests are not allowed."}, status_code=403)
+        body = await request.body()
+        if len(body) > 8192:
+            return JSONResponse({"detail": "Request is too large."}, status_code=413)
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
-    """Handle a chat message."""
-    result = support_agent.handle_message(
-        user_message=request.message,
-        session_id=request.session_id,
-        debug=request.debug,
-    )
+def chat(payload: ChatRequest, request: Request):
+    token = owned_session(request, payload.session_id)
+    actor = request.client.host if request.client else "unknown"
+    with agent_lock:
+        if not guard.admit(actor):
+            raise HTTPException(429, "Demo request limit reached. Please try later.")
+        result = support_agent.handle_message(payload.message, token, debug=False)
+    result["trace"] = None
     return ChatResponse(**result)
 
 
 @app.post("/api/session/new")
-async def new_session():
-    """Create a new conversation session."""
-    session = session_manager.get_or_create()
+def new_session(request: Request, response: Response):
+    actor = request.client.host if request.client else "unknown"
+    if not guard.admit(actor, inference=False):
+        raise HTTPException(429, "Please wait before starting another session.")
+    with agent_lock:
+        # Bound retained conversations; this deployment intentionally uses one worker.
+        from datetime import datetime
+        session_manager.sessions = {k: v for k, v in session_manager.sessions.items()
+                                    if (datetime.now() - v.last_active).total_seconds() < 3600}
+        if len(session_manager.sessions) >= 128:
+            raise HTTPException(429, "The demo is busy. Please try later.")
+        session = session_manager.get_or_create()
+    response.set_cookie(COOKIE, session.session_id, httponly=True, secure=request.url.scheme == "https",
+                        samesite="strict", max_age=3600)
     return {"session_id": session.session_id}
 
 
 @app.post("/api/session/clear")
-async def clear_session(session_id: str):
-    """Clear a conversation session."""
-    session_manager.clear_session(session_id)
+def clear_session(request: Request, session_id: str):
+    token = owned_session(request, session_id)
+    with agent_lock:
+        session_manager.clear_session(token)
     return {"status": "cleared"}
 
 

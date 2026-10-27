@@ -37,3 +37,11 @@ def test_rate_limit(tmp_path):
     g = DemoGuard(tmp_path / 'budget.sqlite')
     assert all(g.admit('a') for _ in range(4))
     assert not g.admit('a')
+
+
+def test_model_outage_is_not_reported_as_success(tmp_path, monkeypatch):
+    monkeypatch.setattr(web, 'guard', DemoGuard(tmp_path / 'budget.sqlite'))
+    monkeypatch.setattr(web.support_agent, 'handle_message', lambda *a, **k: {'provider_failed': True})
+    with TestClient(web.app) as client:
+        client.post('/api/session/new')
+        assert client.post('/api/chat', json={'message': 'returns?'}).status_code == 503

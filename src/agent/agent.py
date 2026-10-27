@@ -146,6 +146,7 @@ class SupportAgent:
 
         tool_results = []
         final_text = ""
+        provider_failed = False
         max_tool_rounds = 3
 
         try:
@@ -235,7 +236,8 @@ class SupportAgent:
                 break
 
         except Exception as e:
-            logger.error(f"Groq error: {e}")
+            provider_failed = True
+            logger.error(f"Provider error: {type(e).__name__}")
             tracer.log_event("error", {"message": str(e)})
             final_text = "I'm sorry, I'm experiencing a technical issue. Please try again or contact our support team."
 
@@ -243,8 +245,11 @@ class SupportAgent:
         sources = self._extract_sources(final_text, passages)
 
         # Ensure source citations are present in the response
-        final_text = self._ensure_source_citations(final_text, passages, sources)
-        sources = self._extract_sources(final_text, passages)
+        if not provider_failed:
+            final_text = self._ensure_source_citations(final_text, passages, sources)
+            sources = self._extract_sources(final_text, passages)
+        else:
+            sources = []
 
         # Check if handoff is recommended
         handoff = self._detect_handoff_needed(final_text, passages, tool_results, user_message)
@@ -264,6 +269,7 @@ class SupportAgent:
             DebugPanel.show_response(final_text, sources)
 
         return {
+            "provider_failed": provider_failed,
             "response": final_text,
             "sources": sources,
             "tool_calls": [tr["tool"] for tr in tool_results],

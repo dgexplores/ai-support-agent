@@ -6,14 +6,14 @@ A reliable RAG-based customer support agent for Aster & Row, an ecommerce compan
 
 ## 60-second brief
 
-RAG customer-support agent for a fictional bag retailer, built to survive bad data: conflicting policies, prompt injection, stale orders, PII. Stack: Groq (`openai/gpt-oss-120b`), ChromaDB local embeddings, FastAPI + Rich CLI. Verified: 22 eval cases (15 supplied + 7 custom), 31 unit tests.
+RAG customer-support agent for a fictional bag retailer, built to survive bad data: conflicting policies, prompt injection, stale orders, PII. Stack: configurable Gemini/Groq, ChromaDB local embeddings, FastAPI + Rich CLI. Current verification: 38 unit/contract tests; two live fictional policy/order smoke checks. The 22-case evaluation below is a historical run, separate from the current model verification.
 
-**Implementation status (2026-10-18):** local, runnable prototype. The repository includes the web UI, CLI, retrieval pipeline, order-lookup tool, fixtures, tests, and recorded demo; no public deployment URL or hosted-environment verification is provided in this repository.
+**Verified deployment (2026-10-27):** [Try the bounded fictional support demo](https://aster-161-118-164-31.sslip.io/). The Oracle deployment uses Gemini 3.5 Flash-Lite and Chroma retrieval. Fresh checks passed a cited return-policy answer, order lookup, HTTPS UI, secure cookies and session isolation. Use fictional inputs only. Free provider quotas can interrupt availability.
 
 | | |
 |---|---|
 | Code | [`src/agent/`](src/agent) · [`src/knowledge_base/`](src/knowledge_base) · [`src/tools/`](src/tools) · [`src/web/`](src/web) |
-| Evidence | [`knowledge-base/`](knowledge-base) (14 docs) · [`evaluation/`](evaluation) (22 cases + runner) · [`tests/`](tests) (31 tests) · [`demo/`](demo) (GIF, screenshots, scenario walkthrough) |
+| Evidence | [`knowledge-base/`](knowledge-base) (14 docs) · [`evaluation/`](evaluation) (22 cases + runner) · [`tests/`](tests) (38 tests) · [`demo/`](demo) (GIF, screenshots, scenario walkthrough) |
 
 ---
 
@@ -88,7 +88,7 @@ Once the web UI (or CLI) is running, test the agent's reliability behaviors your
 # Run the full evaluation suite (22 cases)
 python3 evaluation/run_eval.py
 
-# Run unit tests (31 tests)
+# Run unit tests (38 tests)
 python3 -m pytest tests/ -v
 
 # Or use the shortcuts:
@@ -237,7 +237,7 @@ ai-support-agent/
 - **Source citation format**: Model sometimes cites sources differently than expected format
 - **Handoff detection**: Model provides helpful answers without always recommending handoff (acceptable behavior)
 
-The agent's actual behavior is correct in all cases — the 6 failing automated checks are due to phrasing differences, not actual bugs.
+This historical run passed 16 of 22 automated checks. Some failures were attributed to phrasing differences in the original review; that explanation does not independently establish correctness. Review the six failures against the source policies before claiming full evaluation success.
 
 ---
 
@@ -329,7 +329,7 @@ python3 evaluation/run_eval.py
 1. **Groq rate limits:** Free tier has strict daily limits. Both API keys may be exhausted after heavy testing. Use paid keys for production.
 2. **No persistent sessions:** Conversation history is in-memory only. Restarting the server loses session context.
 3. **Single order lookup tool:** Only supports order status queries. Cannot perform actions (cancellations, refunds, etc.).
-4. **Evaluation strictness:** Some automated checks fail due to phrasing differences, not actual agent errors. The agent's behavior is correct.
+4. **Evaluation strictness:** Some historical checks were reported as phrasing-sensitive; unresolved failures still require review, and this is not a production-accuracy benchmark.
 5. **Embedding quality:** ChromaDB's default embeddings are good but not optimal for policy document retrieval. Fine-tuned embeddings could improve precision.
 
 ---
@@ -373,3 +373,5 @@ The public deployment uses fictional store policies and sample orders. Do not en
 Run one worker with a persistent `/state` volume using the Dockerfile. The Chroma index is rebuilt from the bundled policy documents at startup. No real customer database is connected. The daily allowance remains across restarts when the volume is retained. Hosted demonstration and local evaluation are separate evidence boundaries; a retrieved citation does not establish answer correctness.
 
 For Gemini, set `LLM_PROVIDER=gemini`, a private `GEMINI_API_KEY` and `CHAT_MODEL=gemini-2.5-flash`. An explicit HTTP transport sends chat/function-call requests to Google’s documented compatibility endpoint; no Groq credential is sent to Google. `/api/health` identifies the selected provider/model, but remains a liveness probe.
+
+The public deployment currently selects `CHAT_MODEL=gemini-3.5-flash-lite`. Gemini 2.5 Flash hit its shared free daily quota during verification; no requests were retried against that exhausted model. This is a single configured provider, not rotating credentials to evade limits. All provider quotas still apply.

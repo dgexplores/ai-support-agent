@@ -171,19 +171,11 @@ class SupportAgent:
                 # Check if the model wants to call a tool
                 if message.tool_calls:
                     # Add assistant message with tool calls to history
-                    assistant_msg = {"role": "assistant", "content": message.content or ""}
-                    if message.tool_calls:
-                        assistant_msg["tool_calls"] = [
-                            {
-                                "id": tc.id,
-                                "type": "function",
-                                "function": {
-                                    "name": tc.function.name,
-                                    "arguments": tc.function.arguments,
-                                },
-                            }
-                            for tc in message.tool_calls
-                        ]
+                    # Preserve provider metadata (including Gemini thought signatures)
+                    # across tool calls instead of reconstructing a lossy message.
+                    assistant_msg = message.model_dump(exclude_none=True)
+                    assistant_msg["role"] = "assistant"
+                    assistant_msg.setdefault("content", "")
                     messages.append(assistant_msg)
 
                     for tool_call in message.tool_calls:
